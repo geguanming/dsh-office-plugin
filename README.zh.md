@@ -1,5 +1,8 @@
 # DSH 牛马办公室
 
+[![npm](https://img.shields.io/npm/v/dsh-office-plugin)](https://www.npmjs.com/package/dsh-office-plugin)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 [English](./README.md) | 简体中文
 
 DSH 牛马办公室是 [DeepSeek Harness（dsh）](https://github.com/deepseek-harness)的 Web UI 插件：把多智能体会话的实时活动渲染成一个像素风格的实景办公室。你的每一个 agent 会话都是一头戴工牌的牛马员工--搬砖的敲键盘、摸鱼的溜达打盹，而你，是坐在右下角老板办公室里、头戴皇冠的老板。
@@ -64,6 +67,9 @@ DSH 牛马办公室是 [DeepSeek Harness（dsh）](https://github.com/deepseek-h
 前置：已安装 dsh CLI 并使用 web profile（`dsh web`）。
 
 ```sh
+# 从 npm 安装（推荐）
+dsh plugin --profile web add dsh-office-plugin
+
 # 从本地路径
 dsh plugin --profile web add ./office-plugin
 
@@ -71,7 +77,7 @@ dsh plugin --profile web add ./office-plugin
 dsh plugin --profile web add ./dsh-office-plugin-0.1.0.tgz
 
 # 从 git（需在 profile 的 pnpm-workspace.yaml 中 allowBuilds，见下方说明）
-dsh plugin --profile web add github:<you>/office-plugin
+dsh plugin --profile web add github:geguanming/dsh-office-plugin
 ```
 
 安装后重启 `dsh web`（插件图在启动时读取）。浏览器右上角出现「实景办公室」入口，点击展开右侧办公室面板，对话保持在中栏。

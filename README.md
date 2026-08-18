@@ -1,5 +1,8 @@
 # DSH Ox-Horse Office
 
+[![npm](https://img.shields.io/npm/v/dsh-office-plugin)](https://www.npmjs.com/package/dsh-office-plugin)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 English | [简体中文](./README.zh.md)
 
 DSH Ox-Horse Office is a Web UI plugin for [DeepSeek Harness (dsh)](https://github.com/deepseek-harness) that renders the live activity of your multi-agent sessions as a pixel-art office. Every agent session becomes an ox/horse worker with its own badge -- running agents type at their desks, idle ones wander and nap, and you are the boss, sitting in the corner office wearing a crown.
@@ -64,6 +67,9 @@ The boss (you) has a private office: an executive desk, a monitor, a gold-trimme
 Prerequisite: the dsh CLI with the web profile (`dsh web`).
 
 ```sh
+# From npm (recommended)
+dsh plugin --profile web add dsh-office-plugin
+
 # From a local path
 dsh plugin --profile web add ./office-plugin
 
@@ -71,7 +77,7 @@ dsh plugin --profile web add ./office-plugin
 dsh plugin --profile web add ./dsh-office-plugin-0.1.0.tgz
 
 # From git (requires allowBuilds in the profile's pnpm-workspace.yaml, see below)
-dsh plugin --profile web add github:<you>/office-plugin
+dsh plugin --profile web add github:geguanming/dsh-office-plugin
 ```
 
 Restart `dsh web` after installing (the plugin graph is read at startup). An "Office" entry appears at the top-right of the browser; click it to open the office panel on the right side while the conversation stays in the center column.
