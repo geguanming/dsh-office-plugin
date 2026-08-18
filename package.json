@@ -44,6 +44,7 @@
     "build": "tsdown",
     "watch": "tsdown --watch",
     "typecheck": "tsc --noEmit",
+    "prepare": "tsdown",
     "prepublishOnly": "tsdown"
   },
   "files": [
