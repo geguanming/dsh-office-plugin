@@ -84,12 +84,14 @@ dsh plugin --profile web add github:geguanming/dsh-office-plugin
 
 > 注意：只有 `dsh plugin --profile web add` 能完整激活双半插件；`--patch` + file:/// URL 只加载宿主半部，浏览器代码不会被发现。
 
-> git 方式安装拉取的是源码，需要插件自带的 `prepare` 脚本现场构建；pnpm ≥10 会拦截安装期构建脚本，需在你的 profile 目录（`~/.dsh/profiles/web`）的 `pnpm-workspace.yaml` 中加：
+> git 方式安装拉取的是源码，由插件自带的 `prepare` 脚本现场构建；pnpm ≥10 会拦截安装期构建脚本。**首次安装会失败**，这是预期的：dsh 会在报错里打印一个带 git 来源的完整键，把它加进 profile 目录（`~/.dsh/profiles/web`）的 `pnpm-workspace.yaml` 后重跑安装命令：
 >
 > ```yaml
 > allowBuilds:
->   dsh-office-plugin: true
+>   dsh-office-plugin@git+ssh://git@github.com/geguanming/dsh-office-plugin.git#<commit>: true
 > ```
+>
+> `<commit>` 替换为报错信息里打印的提交哈希。注意裸包名（`dsh-office-plugin: true`）无效。不想折腾 allowBuilds 就用上面的 npm 或 tarball 方式--预构建产物，无需现场构建。
 
 ## 使用指南
 

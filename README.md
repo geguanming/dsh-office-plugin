@@ -84,12 +84,14 @@ Restart `dsh web` after installing (the plugin graph is read at startup). An "Of
 
 > Note: only `dsh plugin --profile web add` fully activates the two-half plugin; `--patch` with a file:/// URL loads the host half only and the browser code is never discovered.
 
-> Installing from git pulls source and builds on install via the bundled `prepare` script; pnpm ≥10 blocks install-time build scripts, so add this to the `pnpm-workspace.yaml` in your profile directory (`~/.dsh/profiles/web`):
+> Installing from git pulls source and builds on install via the bundled `prepare` script; pnpm ≥10 blocks install-time build scripts. **The first install attempt fails by design**: the error prints an exact key (with the git source) to add to the `pnpm-workspace.yaml` in your profile directory (`~/.dsh/profiles/web`) before re-running the install command:
 >
 > ```yaml
 > allowBuilds:
->   dsh-office-plugin: true
+>   dsh-office-plugin@git+ssh://git@github.com/geguanming/dsh-office-plugin.git#<commit>: true
 > ```
+>
+> Replace `<commit>` with the hash printed in the error. Note that the bare package name (`dsh-office-plugin: true`) does not work. To avoid the allowBuilds dance entirely, use the npm or tarball method above -- prebuilt artifacts, no on-install build.
 
 ## Usage guide
 
