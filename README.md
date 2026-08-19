@@ -93,6 +93,14 @@ Restart `dsh web` after installing (the plugin graph is read at startup). An "Of
 >
 > Replace `<commit>` with the hash printed in the error. Note that the bare package name (`dsh-office-plugin: true`) does not work. To avoid the allowBuilds dance entirely, use the npm or tarball method above -- prebuilt artifacts, no on-install build.
 
+## Uninstallation
+
+```sh
+dsh plugin --profile web remove dsh-office-plugin
+```
+
+Restart `dsh web`. If the office entry still shows up afterwards, also remove the `"dsh-office-plugin"` line from the `bundles` list in `~/.dsh/profiles/web/package.json` and restart again.
+
 ## Usage guide
 
 1. Start `dsh web` with the plugin installed, then click the office entry at the top-right;

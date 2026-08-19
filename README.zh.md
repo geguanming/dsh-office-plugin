@@ -93,6 +93,14 @@ dsh plugin --profile web add github:geguanming/dsh-office-plugin
 >
 > `<commit>` 替换为报错信息里打印的提交哈希。注意裸包名（`dsh-office-plugin: true`）无效。不想折腾 allowBuilds 就用上面的 npm 或 tarball 方式--预构建产物，无需现场构建。
 
+## 卸载
+
+```sh
+dsh plugin --profile web remove dsh-office-plugin
+```
+
+重启 `dsh web`。若办公室入口仍出现，再从 `~/.dsh/profiles/web/package.json` 的 `bundles` 列表里删掉 `"dsh-office-plugin"` 一行并重启。
+
 ## 使用指南
 
 1. `dsh web` 启动并安装插件后，点浏览器右上角入口展开办公室；
