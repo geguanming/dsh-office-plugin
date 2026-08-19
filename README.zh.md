@@ -73,8 +73,9 @@ dsh plugin --profile web add dsh-office-plugin
 # 从本地路径
 dsh plugin --profile web add ./office-plugin
 
-# 从 tarball
-dsh plugin --profile web add ./dsh-office-plugin-0.1.0.tgz
+# 从 GitHub Release 的预构建 tarball（无需 allowBuilds）
+curl -LO https://github.com/geguanming/dsh-office-plugin/releases/latest/download/dsh-office-plugin.tgz
+dsh plugin --profile web add ./dsh-office-plugin.tgz
 
 # 从 git（需在 profile 的 pnpm-workspace.yaml 中 allowBuilds，见下方说明）
 dsh plugin --profile web add github:geguanming/dsh-office-plugin

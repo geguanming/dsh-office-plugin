@@ -73,8 +73,9 @@ dsh plugin --profile web add dsh-office-plugin
 # From a local path
 dsh plugin --profile web add ./office-plugin
 
-# From a tarball
-dsh plugin --profile web add ./dsh-office-plugin-0.1.0.tgz
+# From a prebuilt tarball on GitHub Releases (no allowBuilds needed)
+curl -LO https://github.com/geguanming/dsh-office-plugin/releases/latest/download/dsh-office-plugin.tgz
+dsh plugin --profile web add ./dsh-office-plugin.tgz
 
 # From git (requires allowBuilds in the profile's pnpm-workspace.yaml, see below)
 dsh plugin --profile web add github:geguanming/dsh-office-plugin
