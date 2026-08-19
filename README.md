@@ -9,7 +9,7 @@ DSH Ox-Horse Office is a Web UI plugin for [DeepSeek Harness (dsh)](https://gith
 
 > 🌟 **If this project made you smile or helped you out, please give it a Star -- it really helps, thank you!**
 
-![Office entrance](截图/入口.png)
+![Office entrance](assets/entry.png)
 
 ## Cast
 
@@ -35,11 +35,11 @@ The office holds up to 16 workers (supervisor included); overflowing running ses
 - **Click a worker**: an info card with species, status, title (supervisor / worker), and what it is doing right now.
 - **Click a working worker's screen**: opens the **work monitor** window streaming that agent's activity -- thinking, output, tool calls, and reports -- with inline markdown (bold / inline code) support.
 
-  ![Work monitor](截图/工作详情.png)
+  ![Work monitor](assets/work-monitor.png)
 
 - **Click the boss**: opens a mini input bar to issue orders directly to the current session (the supervisor) over the same channel as the main chat input. On success the bar collapses and the supervisor immediately shouts the order out; on failure the error shows inline in red and your draft is kept for retry.
 
-  ![Issuing orders](截图/对话.png)
+  ![Issuing orders](assets/order-boss.png)
 
 ### Pending approvals
 
