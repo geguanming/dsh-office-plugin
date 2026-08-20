@@ -5,6 +5,7 @@ import {
   bossFeed, employeeName, officeStaff, queuedCount, runningChildrenCount, sessionActivity, sessionWork,
   speciesOf, statusColor, statusLabel, statsOf, toEmployees, type BossFeedEntry, type WorkLine,
 } from './officeStore.ts'
+import { namesVersion, ownerName, setCustomName, subscribeNames, OWNER_KEY } from './names.ts'
 import type {
   OfficeConversationSnapshot, OfficeNode, OfficeSessionsState, PartialAssistant,
   PendingInteractionStatus, PendingWaitFace, RunningToolCall, SnapshotSelectorHook,
@@ -74,6 +75,8 @@ function useSelectedSnapshot(
 }
 
 export function OfficeCanvas(props: OfficeCanvasProps): React.ReactElement {
+  // 订阅自定义名版本：改名后让信息卡/监控窗/老板名牌重渲染
+  useSyncExternalStore(subscribeNames, namesVersion)
   const hostRef = useRef<HTMLDivElement | null>(null)
   const [selected, setSelected] = useState<string | undefined>(undefined)
   const [screenId, setScreenId] = useState<string | undefined>(undefined)
@@ -246,7 +249,10 @@ export function OfficeCanvas(props: OfficeCanvasProps): React.ReactElement {
         <div style={{ position: 'absolute', right: 12, bottom: 12, zIndex: 12, background: '#FFFFFF', borderRadius: 12, padding: '10px 12px', boxShadow: '0 6px 20px rgba(0,0,0,0.18)', fontSize: 13, color: '#4A4034', width: 300 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <span style={{ fontSize: 16 }}>👑</span>
-            <span style={{ fontWeight: 700, flex: 1 }}>老板发号施令</span>
+            <span style={{ fontWeight: 700, flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <EditableName storageKey={OWNER_KEY} size={14} />
+              <span style={{ color: '#8A7A63', fontWeight: 500, fontSize: 12 }}>发号施令</span>
+            </span>
             <button onClick={() => setOwnerCompose(false)} title="收起" aria-label="收起" style={{ border: 'none', background: 'transparent', color: '#8A7A63', cursor: 'pointer', width: 22, height: 22, borderRadius: 6, fontSize: 13, lineHeight: 1 }}>✕</button>
           </div>
           {ownerError !== undefined && (
@@ -272,7 +278,7 @@ export function OfficeCanvas(props: OfficeCanvasProps): React.ReactElement {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 30, lineHeight: 1 }}>{speciesOf(selectedSummary.id) === '牛' ? '🐮' : '🐴'}</span>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>{employeeName(selectedSummary.id)}</div>
+              <EditableName storageKey={selectedSummary.id} size={15} />
               <div style={{ fontSize: 11, color: '#8A7A63', fontFamily: 'monospace' }}>{selectedSummary.id.slice(0, 16)}</div>
             </div>
             <button onClick={() => setSelected(undefined)} title="关闭" aria-label="关闭" style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: '#8A7A63', cursor: 'pointer', width: 24, height: 24, borderRadius: 6, fontSize: 13, lineHeight: 1 }}>✕</button>
@@ -519,5 +525,75 @@ function Stat({ chip, value, color }: { chip: string; value: number; color: stri
     <div style={{ background: 'rgba(255,255,255,0.92)', borderRadius: 999, padding: '3px 12px', fontSize: 12, color, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', fontWeight: 600, whiteSpace: 'nowrap' }}>
       {chip} {value}
     </div>
+  )
+}
+
+/**
+ * 内联可编辑人名：点名字进入输入态，Enter/失焦保存，Esc 取消；空串保存即恢复默认名。
+ */
+function EditableName({
+  storageKey, size,
+}: {
+  storageKey: string
+  size: number
+}): React.ReactElement {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const display = storageKey === OWNER_KEY ? ownerName() : employeeName(storageKey)
+
+  useEffect(() => {
+    if (editing) {
+      setDraft(display)
+      requestAnimationFrame(() => inputRef.current?.select())
+    }
+  }, [editing]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const commit = (): void => {
+    setCustomName(storageKey, draft)
+    setEditing(false)
+  }
+  const cancel = (): void => setEditing(false)
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => {
+          if (e.key === 'Enter') commit()
+          else if (e.key === 'Escape') cancel()
+        }}
+        placeholder={storageKey === OWNER_KEY ? '老板' : '牛马'}
+        maxLength={12}
+        style={{
+          fontWeight: 700, fontSize: size, color: '#4A4034',
+          border: '1px solid #C7B89A', borderRadius: 6, padding: '2px 6px',
+          outline: 'none', background: '#FFFEFA', width: '8em', caretColor: '#4A4034',
+        }}
+      />
+    )
+  }
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <span style={{ fontWeight: 700, fontSize: size, color: '#4A4034' }}>{display}</span>
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        title="改名字"
+        aria-label="改名字"
+        style={{
+          border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
+          color: '#9A8A72', display: 'inline-flex', alignItems: 'center', lineHeight: 1,
+        }}
+      >
+        <svg width={Math.max(12, size - 3)} height={Math.max(12, size - 3)} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <path d="M3 21h3.75L17.8 9.94a1.5 1.5 0 0 0 0-2.12l-1.62-1.62a1.5 1.5 0 0 0-2.12 0L3 17.25V21z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+          <path d="M14.5 6.5l3 3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+        </svg>
+      </button>
+    </span>
   )
 }

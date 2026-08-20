@@ -34,7 +34,8 @@ export function OfficeDock(props: OfficeCanvasProps & { onClose: () => void }): 
     style.id = LAYOUT_STYLE_ID
     style.textContent = `#root {
   margin-right: var(${WIDTH_VAR}, 0px);
-  transition: margin-right 0.18s ease;
+  width: calc(100% - var(${WIDTH_VAR}, 0px));
+  transition: margin-right 0.18s ease, width 0.18s ease;
 }
 body[${DRAGGING_ATTR}] #root { transition: none; }`
     document.head.appendChild(style)

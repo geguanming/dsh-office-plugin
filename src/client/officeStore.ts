@@ -1,12 +1,15 @@
 import type { EmployeeInfo, EmployeeStatus } from './pixi/employee.ts'
 import { hashString, lookFor } from './pixi/palette.ts'
+import { getCustomName, OWNER_DEFAULT_NAME, OWNER_KEY } from './names.ts'
+
+export { OWNER_KEY, OWNER_DEFAULT_NAME }
 import type {
   AssistantBlock, OfficeConversationSnapshot, OfficeNode, OfficeSessionSummary, OfficeSessionsState,
   PartialAssistant, RunningToolCall,
 } from './runtimeTypes.ts'
 
-/** 办公室人数上限（含老板位）：超过时优先保留活跃的 */
-export const MAX_EMPLOYEES = 16
+/** 办公室牛马总数上限（含总监 1 名）：1 名总监 + 16 名打工牛马 = 17；老板本尊不在此列 */
+export const MAX_EMPLOYEES = 17
 
 function mapStatus(s: OfficeSessionSummary): EmployeeStatus {
   return s.running ? 'working' : 'idle'
@@ -349,8 +352,10 @@ export function statusLabel(s: OfficeSessionSummary): string {
 
 const CN_SEQ = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十']
 
-/** 员工名牌：由 session id 稳定决定物种与编号（不读对话内容，刷新后不变） */
+/** 员工名牌：自定义名优先；否则由 session id 稳定决定物种与编号（不读对话内容，刷新后不变） */
 export function employeeName(id: string): string {
+  const custom = getCustomName(id)
+  if (custom !== undefined) return custom
   const n = (hashString(id) >>> 6) % 20
   return `${speciesOf(id)}小${CN_SEQ[n]}`
 }

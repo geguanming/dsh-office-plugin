@@ -10,6 +10,7 @@ import {
 } from './officeLayout.ts'
 import { WalkGrid, findPath } from './pathfinding.ts'
 import { hashString, mulberry32, ownerLook } from './palette.ts'
+import { ownerName, subscribeNames } from '../names.ts'
 
 /** 数据源：场景按秒轮询它拿员工清单 */
 export interface EmployeeSource {
@@ -271,7 +272,7 @@ export function createOfficeScene(app: Application, source: EmployeeSource, hook
   ownerGlow.blendMode = 'add'
   bossDeskBox.addChild(ownerGlow)
 
-  const ownerPlate = new Text({ text: '老板', style: { fill: '#8A5A2B', fontSize: 12, fontFamily: FONT, fontWeight: '700' } })
+  const ownerPlate = new Text({ text: ownerName(), style: { fill: '#8A5A2B', fontSize: 12, fontFamily: FONT, fontWeight: '700' } })
   ownerPlate.anchor.set(0.5)
   ownerPlate.position.set(-74, 20)
   ownerPlate.zIndex = 3
@@ -654,6 +655,11 @@ export function createOfficeScene(app: Application, source: EmployeeSource, hook
   autoFit()
   app.ticker.add(tick)
 
+  // 自定义人名改动：刷新老板办公桌名牌（员工无世界名牌，信息卡侧经 React 重渲染读取）
+  const unsubscribeNames = subscribeNames(() => {
+    ownerPlate.text = ownerName()
+  })
+
   return {
     /** 老板刚发完指令：立刻触发总监喊话（不等会话状态沿） */
     bossOrders() {
@@ -661,6 +667,7 @@ export function createOfficeScene(app: Application, source: EmployeeSource, hook
       bossAnnounce()
     },
     destroy() {
+      unsubscribeNames()
       app.ticker.remove(tick)
       app.canvas.removeEventListener('pointerdown', onPointerDown)
       app.canvas.removeEventListener('pointermove', onPointerMove)
