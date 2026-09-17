@@ -24,6 +24,9 @@
     "pixel-art"
   ],
   "main": "lib/index.js",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
