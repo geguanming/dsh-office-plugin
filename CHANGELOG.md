@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 (2026-09-17)
+
+- 适配 dsh 0.1.5：客户端运行时会话数据拆分（会话内容迁至 `uiConversation` 的 `binding(id).target('chat').legacy`，待审批/提问迁至 `uiSession.pendingInteractions` 且 plan-review 并入 question，审批由 `respond()` 改为 `answer()` 模型），新增 `runtimeAdapter` 在订阅边界拼回原数据形状，OfficeCanvas/officeStore 零改动；**不再兼容 0.1.2**
+- `dsh.client.inject` 更新为 ui-session/ui-conversation/ui-chat/ui-layout（`dsh-client-runtime` 已在 0.1.5 移除）
+
 ## 0.2.0 (2026-08-20)
 
 - 布局：打开办公室面板时聊天区向左侧收缩让位（`#root` 同步 `width: calc(100% - …)`），不再浮层覆盖在对话上方

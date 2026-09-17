@@ -1,6 +1,6 @@
 {
   "name": "dsh-office-plugin",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Live office: multi-agent activity rendered as a pixi.js office of ox/horse workers, in a Web UI tab next to the trajectory view",
   "type": "module",
   "packageManager": "pnpm@11.21.0",
@@ -35,8 +35,10 @@
     },
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-client-runtime",
-        "@deepseek-ai/dsh-client-ui-conversation"
+        "@deepseek-ai/dsh-client-ui-session",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-chat",
+        "@deepseek-ai/dsh-client-ui-layout"
       ],
       "platform": "web"
     }
