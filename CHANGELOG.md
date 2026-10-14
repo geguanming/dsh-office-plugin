@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Adapt the office to dsh 0.2.1-alpha.2: Session status, main-view selection, retained monitor lifetimes, Workspace navigation, and addressed child discovery.
+- Show only the selected Session as supervisor in employee cards and work monitors.
+- Fix work-monitor crashes while a streamed tool call is still preparing its arguments; show preparation separately from dispatched arguments.
+- Add regression coverage for Session status/retention, child discovery, and tool preparation.
+
 ## 0.3.0 (2026-09-17)
 
 - 适配 dsh 0.1.5：客户端运行时会话数据拆分（会话内容迁至 `uiConversation` 的 `binding(id).target('chat').legacy`，待审批/提问迁至 `uiSession.pendingInteractions` 且 plan-review 并入 question，审批由 `respond()` 改为 `answer()` 模型），新增 `runtimeAdapter` 在订阅边界拼回原数据形状，OfficeCanvas/officeStore 零改动；**不再兼容 0.1.2**

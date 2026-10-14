@@ -63,6 +63,8 @@ DSH 牛马办公室是 [DeepSeek Harness（dsh）](https://github.com/deepseek-h
 - 面板尺寸变化时自动适配。
 
 ## 安装
+此版本适配 **DeepSeek Harness 0.2.1-alpha.2**，使用新版会话引用生命周期、`uiSession.sessionStatus` 和工作区导航接口；此适配器不再支持旧的 0.1.5 运行时。
+
 
 前置：已安装 dsh CLI 并使用 web profile（`dsh web`）。
 
@@ -128,7 +130,7 @@ pnpm run typecheck
 两条硬约束（改动前必读 [CLAUDE.md](./CLAUDE.md)）：
 
 - `client.js` 必须是带 `window.__ModuleLoader__.load` banner 的单文件 CJS（`inlineDynamicImports: true`，pixi.js 的动态 import 会拆 chunk 导致 404）；
-- `tsdown.config.ts` 的 external 列表须跟随 dsh 主仓库 `packages/client/web/src/platform.ts` 的 `PLATFORM_MODULES` 同步；`src/client/runtimeTypes.ts` 是与 `@deepseek-ai/dsh-client-runtime` 契约手动对齐的本地类型面。
+- `src/client/runtimeTypes.ts` 描述 `runtimeAdapter.ts` 使用的会话控制器、会话状态与对话接口，需与支持的 dsh 版本同步；工具准备阶段尚无完整参数文本，监控需明确处理这一状态。
 
 ## 致谢
 

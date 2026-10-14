@@ -286,7 +286,7 @@ export function OfficeCanvas(props: OfficeCanvasProps): React.ReactElement {
           <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '5px 12px', marginTop: 10, paddingTop: 10, borderTop: '1px solid #F0EAE0', color: '#6E6252' }}>
             <span style={{ color: '#9A8A72' }}>物种</span><span>{speciesOf(selectedSummary.id)}</span>
             <span style={{ color: '#9A8A72' }}>状态</span><span style={{ fontWeight: 600, color: statusColor(selectedSummary) }}>{statusLabel(selectedSummary)}</span>
-            <span style={{ color: '#9A8A72' }}>职位</span><span>{selectedSummary.parentId === undefined ? '总监牛马' : '打工牛马'}</span>
+            <span style={{ color: '#9A8A72' }}>职位</span><span>{selectedSummary.id === props.sessionId ? '总监牛马' : '打工牛马'}</span>
             {selectedSnapshot !== undefined && (
               <>
                 <span style={{ color: '#9A8A72' }}>当前</span>
@@ -323,7 +323,7 @@ export function OfficeCanvas(props: OfficeCanvasProps): React.ReactElement {
       {screenSummary !== undefined && (
         <WorkMonitor
           id={screenSummary.id}
-          parentId={screenSummary.parentId}
+          isSupervisor={screenSummary.id === props.sessionId}
           snapshot={screenSnapshot}
           onClose={() => setScreenId(undefined)}
         />
@@ -440,10 +440,10 @@ const WORK_META: Record<WorkLine['kind'], { icon: string; label: string; color: 
 }
 
 function WorkMonitor({
-  id, parentId, snapshot, onClose,
+  id, isSupervisor, snapshot, onClose,
 }: {
   id: string
-  parentId: string | undefined
+  isSupervisor: boolean
   snapshot: OfficeConversationSnapshot | undefined
   onClose: () => void
 }): React.ReactElement {
@@ -464,7 +464,7 @@ function WorkMonitor({
               {employeeName(id)} 的工位监控
               {snapshot?.running === true && <span style={{ marginLeft: 8, fontSize: 11, color: '#D9714E', fontWeight: 700 }}>● 实时</span>}
             </div>
-            <div style={{ fontSize: 11, color: '#9A8A72', fontFamily: 'monospace' }}>{id.slice(0, 24)}{parentId === undefined ? ' · 总监' : ''}</div>
+            <div style={{ fontSize: 11, color: '#9A8A72', fontFamily: 'monospace' }}>{id.slice(0, 24)}{isSupervisor ? ' · 总监' : ''}</div>
           </div>
           <button onClick={onClose} title="关闭" aria-label="关闭" style={{ border: 'none', background: 'transparent', color: '#8A7A63', cursor: 'pointer', width: 28, height: 28, borderRadius: 6, fontSize: 15, lineHeight: 1 }}>✕</button>
         </div>

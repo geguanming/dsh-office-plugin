@@ -26,10 +26,11 @@ interface ClientContext {
   uiConversation?: UiConversationFace
   /** 0.1.5 新增：待审批/提问（pendingInteractions） */
   uiSession?: UiSessionFace
+  uiWorkspace: { openSession(id: string): void }
 }
 
 /** 需要的浏览器服务：slots 注册入口；layout 收起/恢复左侧栏；后三个经 runtimeAdapter 拼回 0.1.2 的会话数据形状。 */
-export const inject = ['slots', 'layout', 'sessions', 'uiConversation', 'uiSession']
+export const inject = ['slots', 'layout', 'sessions', 'uiConversation', 'uiSession', 'uiWorkspace']
 
 /**
  * 客户端插件主体：在窗口右上角（shell.overlay 全局层）注册「实景办公室」入口，
@@ -41,7 +42,7 @@ export function apply(ctx: ClientContext): void {
     layout: ctx.layout,
     sessions: ctx.sessions === undefined
       ? undefined
-      : adaptRuntime({ sessions: ctx.sessions, uiConversation: ctx.uiConversation, uiSession: ctx.uiSession }),
+      : adaptRuntime({ sessions: ctx.sessions, uiConversation: ctx.uiConversation!, uiSession: ctx.uiSession!, uiWorkspace: ctx.uiWorkspace }),
   }
   ctx.slots.inject('shell.overlay', () => {
     ctx.slots.register({

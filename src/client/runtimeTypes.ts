@@ -1,18 +1,10 @@
 /**
- * 与 dsh 0.1.5 客户端运行时真实契约结构兼容的本地类型面。
- * 插件是独立 bundle（不链接仓库包，见 pnpm-workspace.yaml），这里按运行时
- * 导出的形状逐字段对齐；字段只保留本插件用到的一层，深层用 unknown 兜底。
- *
- * 0.1.5 关键变化（0.1.2 → 0.1.5）：
- * - face.getSnapshot() 从「会话内容快照」变成 SessionSnapshot（只有生命周期/
- *   控制状态）；nodes/partial/runningCalls 迁到 uiConversation 服务的
- *   binding(id).target('chat') → ChatSnapshot.legacy（LegacyConversationSlice）。
- * - SessionSummary.pendingInteraction 删除；待审批/提问迁到 uiSession 服务的
- *   pendingInteractions（ReadonlyMap<SessionId, SessionPendingInteraction>），
- *   plan-review 并入 question；PendingApproval 用 answer(outcome) 取代
- *   respond({ok,value})。
- * 本插件内部仍沿用 0.1.2 的 OfficeConversationSnapshot/OfficeSessionSummary
- * 形状，由 runtimeAdapter.ts 在订阅边界做双向换算。
+ * Runtime contracts consumed by the dsh 0.2.1-alpha.2 adapter.
+ * Session content comes from uiConversation's chat target, status from
+ * uiSession.sessionStatus, and history ownership from sessions.retain/release.
+ * mainView reference ownership identifies the selected supervisor. Preparing
+ * tool calls have no argsRaw until dispatch. Keep these structural faces aligned
+ * with the supported runtime; the office's internal snapshots remain stable.
  */
 
 /** 框架标准 props 里的选择器 hook 形状（ui-slots/src/store.ts 原样）。 */
@@ -53,9 +45,11 @@ export interface ToolResultNode {
 
 /** 进行中的工具调用（conversation.ts RunningToolCall）。 */
 export interface RunningToolCall {
+  /** Preparing calls have a name but no finalized argument text yet. */
+  phase?: 'preparing' | 'start'
   callId: string
   name: string
-  argsRaw: string
+  argsRaw?: string
   turn: number
   step: number
   time: number
@@ -113,6 +107,8 @@ export type PendingInteractionStatus = 'approval' | 'plan-review' | 'question'
 
 /** SessionListState.byId 的值（service.ts SessionSummary 全字段）。 */
 export interface OfficeSessionSummary {
+  retainedBy?: Readonly<Record<string, number>>
+  projectionValues?: { subagentCatalog?: readonly { id: string; label?: string; mode: string; createdAt: number }[] }
   id: string
   displayTitle: string
   cwd?: string
@@ -165,7 +161,7 @@ export interface RawSessionFace {
     blank: boolean
     openState: 'cold' | 'loading' | 'open' | 'error'
   }
-  open(): Promise<void>
+  open?(): Promise<void>
   prompt(
     content: Array<{ type: 'text'; text: string }>,
     mode: 'queue' | 'steer',
@@ -174,10 +170,17 @@ export interface RawSessionFace {
 
 /** 0.1.5 sessions 服务（ISessions）用到的子集。 */
 export interface SessionsServiceFace {
-  list: Observable<OfficeSessionsState>
+  list: Observable<Omit<OfficeSessionsState, 'current' | 'subagentsByParent'> & {
+    projectionsBySession?: Readonly<Record<string, { values: { subagentCatalog?: readonly { id: string; label?: string; mode: string; createdAt: number }[] } }>>
+  }>
   scope(id: string): unknown | undefined
   sessionOf(scoped: unknown): RawSessionFace | undefined
-  open(id: string): void
+  retain(id: string, options: { source: string }): {
+    binding: { session: RawSessionFace }
+    ready: Promise<unknown>
+    release(): void
+  }
+  binding(id: string): { session: RawSessionFace } | undefined
 }
 
 /** 0.1.5 ChatSnapshot 用到的子集：legacy 即旧顶层会话内容字段的兼容投影。 */
@@ -209,5 +212,8 @@ export interface PendingInteractionFace {
 
 /** 0.1.5 uiSession 服务用到的子集。 */
 export interface UiSessionFace {
-  pendingInteractions: Observable<ReadonlyMap<string, PendingInteractionFace>>
+  sessionStatus: Observable<ReadonlyMap<string, {
+    running: boolean | undefined
+    pendingInteraction: PendingInteractionFace | undefined
+  }>>
 }

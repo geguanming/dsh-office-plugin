@@ -1,188 +1,124 @@
-/**
- * dsh 0.1.5 运行时适配层：把 uiConversation/uiSession 拆出去的数据重新拼回
- * 插件内部沿用的 0.1.2 形状（OfficeConversationSnapshot / 带 pendingInteraction
- * 的 SessionSummary），OfficeCanvas/officeStore 无需改动。
- *
- * 换算关系：
- * - 会话内容：face.getSnapshot()（只剩生命周期）+ uiConversation.binding(id)
- *   .target('chat').legacy（nodes/partial/runningCalls）→ OfficeConversationSnapshot；
- * - 待办：uiSession.pendingInteractions（Map）→ summary.pendingInteraction 与
- *   snapshot.pending（PendingApproval.answer 包成旧的 respond 形状）。
- *
- * 所有 getSnapshot 都做了引用记忆：底层三份来源都没变时返回同一对象，
- * 否则 useSyncExternalStore 会因快照引用抖动无限重渲染。
- */
+/** DSH 0.2.1: catalog + UI status + explicitly retained Conversation views. */
 import type {
-  ChatSnapshotFace, Observable, OfficeConversationSnapshot, OfficeNode, OfficeSessionsState,
-  OfficeSessionSummary, PendingInteractionFace, PendingWaitFace, RawSessionFace, RunningToolCall,
-  SessionsServiceFace, UiConversationFace, UiSessionFace,
+  Observable, OfficeConversationSnapshot, OfficeSessionsState, PendingInteractionFace,
+  PendingWaitFace, SessionsServiceFace, UiConversationFace, UiSessionFace,
 } from './runtimeTypes.ts'
 import type { SessionFace, SessionsFace } from './OfficeCanvas.tsx'
 
-const EMPTY_NODES: readonly OfficeNode[] = []
-const EMPTY_CALLS: readonly RunningToolCall[] = []
+const EMPTY_NODES: OfficeConversationSnapshot['nodes'] = []
+const EMPTY_CALLS: OfficeConversationSnapshot['runningCalls'] = []
 const EMPTY_PENDING: readonly PendingWaitFace[] = []
 
 export interface RuntimeSources {
   sessions: SessionsServiceFace
-  uiConversation?: UiConversationFace
-  uiSession?: UiSessionFace
+  uiConversation: UiConversationFace
+  uiSession: UiSessionFace
+  uiWorkspace: { openSession(id: string): void }
 }
 
-/** 0.1.5 里 plan-review 并入 question，approval 保持原名 */
-function pendingStatusOf(p: PendingInteractionFace): 'approval' | 'question' {
-  return p.kind === 'approval' ? 'approval' : 'question'
-}
-
-/** PendingApproval（answer 模型）包成旧的 PendingWaitFace（respond 模型） */
-function toPendingWait(p: PendingInteractionFace): PendingWaitFace {
-  if (p.kind === 'approval') {
-    return {
-      kind: 'approval',
-      key: p.key,
-      sessionId: p.sessionId,
-      // approvalId 在 0.1.5 不再外露（answer 内部完成关联），用 key 占位让完整性检查通过
-      payload: { approvalId: p.key, toolName: p.toolName, callId: p.callId, reason: p.reason },
-      respond(result: unknown) {
-        const value = (result as { value?: { outcome?: 'allowed-once' | 'rejected' } } | undefined)?.value
-        if (p.answer === undefined || value?.outcome === undefined) {
-          return Promise.resolve({ accepted: false })
-        }
-        return p.answer(value.outcome).then(() => ({ accepted: true }))
-      },
-    }
-  }
+function pendingWait(p: PendingInteractionFace): PendingWaitFace {
   return {
-    kind: 'question',
-    key: p.key,
-    sessionId: p.sessionId,
-    payload: {},
-    respond: () => Promise.resolve({ accepted: false }),
+    kind: p.kind === 'approval' ? 'approval' : 'question', key: p.key, sessionId: p.sessionId,
+    payload: { approvalId: p.key, toolName: p.toolName, callId: p.callId, reason: p.reason },
+    async respond(result) {
+      const outcome = (result as { value?: { outcome?: 'allowed-once' | 'rejected' } })?.value?.outcome
+      if (p.kind !== 'approval' || !p.answer || !outcome) return { accepted: false }
+      await p.answer(outcome)
+      return { accepted: true }
+    },
   }
 }
 
 export function adaptRuntime(raw: RuntimeSources): SessionsFace {
-  const { sessions, uiConversation, uiSession } = raw
-  // scope 是不透明 AgentContext，sessionOf 时需要还原 session id
-  const scopeIds = new WeakMap<object, string>()
-
-  const scopeRaw = (id: string): unknown | undefined => {
-    const scoped = sessions.scope(id)
-    if (scoped !== null && (typeof scoped === 'object' || typeof scoped === 'function')) {
-      scopeIds.set(scoped as object, id)
-    }
-    return scoped
-  }
-
-  const pendingMap = (): ReadonlyMap<string, PendingInteractionFace> | undefined =>
-    uiSession?.pendingInteractions.getSnapshot()
-
-  // ---- list：在 SessionListState 上合成 pendingInteraction ----
-  let listCache: {
-    rawState: OfficeSessionsState
-    rawMap: ReadonlyMap<string, PendingInteractionFace> | undefined
-    merged: OfficeSessionsState
-  } | undefined
-
+  const { sessions, uiSession, uiConversation, uiWorkspace } = raw
+  let lastCatalog: unknown, lastStatus: unknown, cachedList: OfficeSessionsState
   const list: Observable<OfficeSessionsState> = {
     subscribe(cb) {
-      const un1 = sessions.list.subscribe(cb)
-      const un2 = uiSession?.pendingInteractions.subscribe(cb)
-      return () => { un1(); un2?.() }
+      const a = sessions.list.subscribe(cb), b = uiSession.sessionStatus.subscribe(cb)
+      return () => { a(); b() }
     },
     getSnapshot() {
-      const rawState = sessions.list.getSnapshot()
-      const rawMap = pendingMap()
-      if (listCache !== undefined && listCache.rawState === rawState && listCache.rawMap === rawMap) {
-        return listCache.merged
+      const catalog = sessions.list.getSnapshot(), status = uiSession.sessionStatus.getSnapshot()
+      if (catalog === lastCatalog && status === lastStatus) return cachedList
+      const byId: OfficeSessionsState['byId'] = {}
+      for (const [id, row] of Object.entries(catalog.byId)) {
+        if (!row) continue
+        const state = status.get(id)
+        byId[id] = { ...row, running: state?.running ?? row.running,
+          pendingInteraction: state?.pendingInteraction ? (state.pendingInteraction.kind === 'approval' ? 'approval' : 'question') : undefined }
       }
-      let byId = rawState.byId
-      if (rawMap !== undefined) {
-        for (const [id, p] of rawMap) {
-          const s: OfficeSessionSummary | undefined = rawState.byId[id]
-          if (s === undefined) continue
-          const kind = pendingStatusOf(p)
-          if (s.pendingInteraction === kind) continue
-          if (byId === rawState.byId) byId = { ...rawState.byId }
-          byId[id] = { ...s, pendingInteraction: kind }
+      // mainView is the public reference source owned by DSH's selected conversation.
+      const current = Object.values(byId).find(row => (row?.retainedBy?.mainView ?? 0) > 0)?.id
+      // Addressed children can be absent from the top-level catalog; use durable
+      // parent projections for membership, never manufacture demonstration agents.
+      for (const [parentId, parent] of Object.entries(catalog.byId)) {
+        const children = catalog.projectionsBySession?.[parentId]?.values.subagentCatalog ?? parent?.projectionValues?.subagentCatalog
+        for (const child of children ?? []) {
+          if (child.mode === 'external' || byId[child.id]) continue
+          const state = status.get(child.id)
+          byId[child.id] = { id: child.id, parentId, origin: 'subagent',
+            displayTitle: child.label ?? child.id, running: state?.running ?? false,
+            pendingInteraction: state?.pendingInteraction ? (state.pendingInteraction.kind === 'approval' ? 'approval' : 'question') : undefined,
+            blank: false, updatedAt: child.createdAt }
         }
       }
-      const merged = byId === rawState.byId ? rawState : { ...rawState, byId }
-      listCache = { rawState, rawMap, merged }
-      return merged
+      cachedList = { ids: Object.keys(byId), byId, current, subagentsByParent: {} }
+      lastCatalog = catalog; lastStatus = status
+      return cachedList
     },
   }
-
-  // ---- 单会话：生命周期 + chat legacy + pending 合成 OfficeConversationSnapshot ----
-  const composites = new Map<string, { face: RawSessionFace; composite: SessionFace }>()
-
-  const makeComposite = (id: string, face: RawSessionFace): SessionFace => {
-    let target: Observable<ChatSnapshotFace | undefined> | undefined
-    try {
-      target = uiConversation?.binding(id).target('chat')
-    } catch {
-      target = undefined
-    }
-    let cache: {
-      life: ReturnType<RawSessionFace['getSnapshot']>
-      chat: unknown
-      pending: PendingInteractionFace | undefined
-      snap: OfficeConversationSnapshot
-    } | undefined
-
-    return {
+  const faces = new Map<string, SessionFace>()
+  const tokens = new Map<string, object>()
+  const ids = new WeakMap<object, string>()
+  const faceFor = (id: string): SessionFace => {
+    const existing = faces.get(id)
+    if (existing) return existing
+    let lastLife: unknown, lastChat: unknown, lastPending: unknown, lastRow: unknown
+    let snapshot: OfficeConversationSnapshot | undefined
+    const face: SessionFace = {
       subscribe(cb) {
-        const un1 = face.subscribe(cb)
-        const un2 = target?.subscribe(cb)
-        const un3 = uiSession?.pendingInteractions.subscribe(cb)
-        return () => { un1(); un2?.(); un3?.() }
+        // Only visible monitors/current conversation acquire history, never every idle employee.
+        const reference = sessions.retain(id, { source: 'officeMonitor' })
+        const target = uiConversation.binding(id).target('chat')
+        const a = reference.binding.session.subscribe(cb), b = target.subscribe(cb)
+        const c = uiSession.sessionStatus.subscribe(cb), d = sessions.list.subscribe(cb)
+        let active = true
+        void reference.ready.then(() => { if (active) cb() }, () => { if (active) cb() })
+        return () => { active = false; a(); b(); c(); d(); reference.release() }
       },
       getSnapshot() {
-        const life = face.getSnapshot()
-        const chat = target?.getSnapshot()
-        const pending = pendingMap()?.get(id)
-        if (cache !== undefined && cache.life === life && cache.chat === chat && cache.pending === pending) {
-          return cache.snap
-        }
-        const legacy = chat?.legacy
-        const snap: OfficeConversationSnapshot = {
-          sessionId: id,
-          running: life.running,
-          blank: life.blank,
-          openState: life.openState,
-          nodes: legacy?.nodes ?? EMPTY_NODES,
-          runningCalls: legacy?.runningCalls ?? EMPTY_CALLS,
-          partial: legacy?.partial ?? null,
-          pending: pending !== undefined ? [toPendingWait(pending)] : EMPTY_PENDING,
-        }
-        cache = { life, chat, pending, snap }
-        return snap
+        const binding = sessions.binding(id)
+        const life = binding?.session.getSnapshot()
+        const chat = binding ? uiConversation.binding(id).target('chat').getSnapshot() : undefined
+        const pending = uiSession.sessionStatus.getSnapshot().get(id)?.pendingInteraction
+        const row = sessions.list.getSnapshot().byId[id]
+        if (snapshot && life === lastLife && chat === lastChat && pending === lastPending && row === lastRow) return snapshot
+        snapshot = { sessionId: id, running: life?.running ?? row?.running ?? false,
+          blank: life?.blank ?? row?.blank ?? true, openState: life?.openState ?? 'cold',
+          nodes: chat?.legacy?.nodes ?? EMPTY_NODES, runningCalls: chat?.legacy?.runningCalls ?? EMPTY_CALLS,
+          partial: chat?.legacy?.partial ?? null, pending: pending ? [pendingWait(pending)] : EMPTY_PENDING }
+        lastLife = life; lastChat = chat; lastPending = pending; lastRow = row
+        return snapshot
       },
-      open: () => face.open(),
-      prompt: (content, mode) => face.prompt(content, mode),
+      async open() {
+        const reference = sessions.retain(id, { source: 'officeMonitor' })
+        try { await reference.ready } finally { reference.release() }
+      },
+      async prompt(content, mode) {
+        const reference = sessions.retain(id, { source: 'officeMonitor' })
+        try { await reference.ready; return await reference.binding.session.prompt(content, mode) }
+        finally { reference.release() }
+      },
     }
+    faces.set(id, face)
+    return face
   }
-
-  const compositeOf = (id: string): SessionFace | undefined => {
-    const scoped = scopeRaw(id)
-    const face = scoped === undefined ? undefined : sessions.sessionOf(scoped)
-    if (face === undefined) return undefined
-    const hit = composites.get(id)
-    if (hit !== undefined && hit.face === face) return hit.composite
-    const composite = makeComposite(id, face)
-    composites.set(id, { face, composite })
-    return composite
-  }
-
-  return {
-    list,
-    scope: scopeRaw,
-    sessionOf(scoped) {
-      const id = scoped !== null && (typeof scoped === 'object' || typeof scoped === 'function')
-        ? scopeIds.get(scoped as object)
-        : undefined
-      return id === undefined ? undefined : compositeOf(id)
+  return { list,
+    scope(id) {
+      if (!tokens.has(id)) { const token = {}; tokens.set(id, token); ids.set(token, id) }
+      return tokens.get(id)
     },
-    open: id => sessions.open(id),
+    sessionOf(token) { const id = typeof token === 'object' && token !== null ? ids.get(token) : undefined; return id ? faceFor(id) : undefined },
+    open: id => uiWorkspace.openSession(id),
   }
 }

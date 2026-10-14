@@ -139,8 +139,10 @@ export function sessionWork(s: OfficeConversationSnapshot): WorkLine[] {
     else if (hasReasoning(s.partial.blocks)) lines.push({ kind: 'thinking', text: '思考中…' })
   }
   for (const call of s.runningCalls) {
-    const args = call.argsRaw.trim()
-    lines.push({ kind: 'tool', text: args === '' ? call.name : `${call.name} ${args}` })
+    const args = call.argsRaw?.trim() ?? ''
+    lines.push({ kind: 'tool', text: call.phase === 'preparing'
+      ? `${call.name}（正在生成参数…）`
+      : args === '' ? call.name : `${call.name} ${args}` })
   }
   // 连续的「派活 → 牛马上岗 …」折叠成一行（批量派 subagent 时整屏都是它）
   const collapsed: WorkLine[] = []

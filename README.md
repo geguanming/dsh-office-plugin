@@ -63,6 +63,8 @@ The boss (you) has a private office: an executive desk, a monitor, a gold-trimme
 - auto-fits when the panel resizes.
 
 ## Installation
+This version targets **DeepSeek Harness 0.2.1-alpha.2**. It uses the current Session reference lifecycle, `uiSession.sessionStatus`, and Workspace navigation APIs; the previous 0.1.5 runtime is no longer supported by this adapter.
+
 
 Prerequisite: the dsh CLI with the web profile (`dsh web`).
 
@@ -128,7 +130,7 @@ This is a dsh "two-half" plugin:
 Two hard constraints (read [CLAUDE.md](./CLAUDE.md) before changing the build):
 
 - `client.js` must be a single-file CJS bundle wrapped in the `window.__ModuleLoader__.load` banner (`inlineDynamicImports: true` -- pixi.js has dynamic imports that would otherwise split chunks and 404);
-- the external list in `tsdown.config.ts` must track `PLATFORM_MODULES` from `packages/client/web/src/platform.ts` in the dsh repo, and `src/client/runtimeTypes.ts` is a hand-aligned local type face of `@deepseek-ai/dsh-client-runtime`.
+- `src/client/runtimeTypes.ts` describes the Session Controller, UI Session status, and Conversation contracts consumed by `runtimeAdapter.ts`. Keep it aligned with the supported dsh release, including preparing tool calls whose finalized argument text is not yet available.
 
 ## Acknowledgements
 
