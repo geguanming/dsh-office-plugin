@@ -196,9 +196,11 @@ export function OfficeCanvas(props: OfficeCanvasProps): React.ReactElement {
     let disposed = false
     let scene: { destroy(): void; bossOrders(): void } | undefined
     let observer: ResizeObserver | undefined
+    let resizeFrame: number | undefined
 
-    void app.init({ antialias: true, background: '#E8DCC8' }).then(() => {
+    void app.init({ antialias: true, background: '#E8DCC8', width: Math.max(1, host.clientWidth), height: Math.max(1, host.clientHeight) }).then(() => {
       if (disposed) return
+      Object.assign(app.canvas.style, { display: 'block', width: '100%', height: '100%' })
       host.appendChild(app.canvas)
       scene = createOfficeScene(app, {
         list() {
@@ -211,9 +213,19 @@ export function OfficeCanvas(props: OfficeCanvasProps): React.ReactElement {
         onOwnerTap: () => setOwnerCompose(true),
       })
       sceneRef.current = scene
-      // 手动跟随宿主尺寸：面板宽度变化时画布可靠 resize（比内置 resizeTo 更稳）
-      const resize = (): void => { app.renderer.resize(host.clientWidth, host.clientHeight) }
-      resize()
+      // Keep intrinsic Canvas dimensions out of layout and redraw immediately
+      // after replacing its GL buffer. Coalesce observer updates per frame.
+      const resize = (): void => {
+        if (resizeFrame !== undefined) return
+        resizeFrame = requestAnimationFrame(() => {
+          resizeFrame = undefined
+          if (disposed) return
+          const width = Math.max(1, Math.round(host.clientWidth)), height = Math.max(1, Math.round(host.clientHeight))
+          if (app.screen.width === width && app.screen.height === height) return
+          app.renderer.resize(width, height)
+          app.render()
+        })
+      }
       observer = new ResizeObserver(resize)
       observer.observe(host)
     })
@@ -221,6 +233,7 @@ export function OfficeCanvas(props: OfficeCanvasProps): React.ReactElement {
     return () => {
       disposed = true
       observer?.disconnect()
+      if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame)
       sceneRef.current = undefined
       scene?.destroy()
       try {
@@ -232,7 +245,7 @@ export function OfficeCanvas(props: OfficeCanvasProps): React.ReactElement {
   }, [])
 
   return (
-    <div ref={hostRef} style={{ width: '100%', height: '100%', minHeight: 320, position: 'relative' }}>
+    <div ref={hostRef} style={{ width: '100%', height: '100%', minHeight: 0, overflow: 'hidden', position: 'relative' }}>
       <div style={{ position: 'absolute', top: 10, left: 12, display: 'flex', gap: 6, zIndex: 10, pointerEvents: 'none' }}>
         <Stat chip="🐑牛马总数" value={stats.total} color="#8A7A63" />
         <Stat chip="🔥搬砖中" value={stats.working} color="#D9714E" />

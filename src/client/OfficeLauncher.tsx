@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { OfficeDock } from './OfficeDock.tsx'
 import type { SessionFace, SessionsFace } from './OfficeCanvas.tsx'
@@ -27,12 +27,11 @@ function resolveFace(sessions: SessionsFace | undefined, sessionId: string | und
 
 /**
  * 全局右上角入口（shell.overlay）：不依赖会话头部，空白新会话也能看到。
- * 点击收起左侧会话栏并展开办公室侧边栏；会话数据经 ctx.sessions 自订阅。
+ * 打开可移动、可缩放的浮动办公室，不改变聊天和侧栏布局。
  */
 export function OfficeLauncher(props: OfficeLauncherProps): React.ReactElement {
   const { ctx } = props
   const [open, setOpen] = useState(false)
-  const sidebarWasOpen = useRef(false)
   const sessions = ctx.sessions
 
   // 会话列表自订阅（selector hook 面，透传给 OfficeCanvas）
@@ -57,12 +56,9 @@ export function OfficeLauncher(props: OfficeLauncherProps): React.ReactElement {
   }, [face])
 
   const openDock = (): void => {
-    sidebarWasOpen.current = isSidebarOpen()
-    if (sidebarWasOpen.current) ctx.layout?.toggleSidebar()
     setOpen(true)
   }
   const closeDock = (): void => {
-    if (sidebarWasOpen.current) ctx.layout?.toggleSidebar()
     setOpen(false)
   }
 
@@ -114,9 +110,4 @@ export function OfficeLauncher(props: OfficeLauncherProps): React.ReactElement {
       )}
     </>
   )
-}
-
-/** 左侧会话栏是否展开：AppFrame 折叠时在 frame 上打 data-sidebar-collapsed 标记 */
-function isSidebarOpen(): boolean {
-  return document.querySelector('#root [data-sidebar-collapsed]') === null
 }

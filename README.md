@@ -104,8 +104,10 @@ Restart `dsh web`. If the office entry still shows up afterwards, also remove th
 
 ## Usage guide
 
+The office opens as a 520×400 floating window in the bottom-right corner. Drag its title bar to move it, or the bottom-right handle to adjust both width and height. Position and dimensions are saved in browser storage and clamped to the viewport. Opening the office keeps the chat layout and sidebar unchanged.
+
 1. Start `dsh web` with the plugin installed, then click the office entry at the top-right;
-2. The left session sidebar auto-collapses for a wider view and restores when you close the panel;
+2. Move the window by its title bar and resize with the bottom-right handle;
 3. Read the room: the dashboard plus lit/dark screens tell you the global state at a glance;
 4. Click a worker for its info card; click a lit screen for the work monitor;
 5. Click the boss to issue an order, or handle approvals right from the pop-up card;

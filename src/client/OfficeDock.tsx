@@ -1,166 +1,80 @@
 import { useEffect, useRef, useState } from 'react'
 import { OfficeCanvas, type OfficeCanvasProps } from './OfficeCanvas.tsx'
 
-const KEYFRAMES = `
-@keyframes dsh-office-dock-in {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
-}`
+const STORAGE_KEY = 'dsh-office-floating-window-v1'
+interface Bounds { x: number; y: number; width: number; height: number }
+function clamp(bounds: Bounds): Bounds {
+  const maxW = Math.max(1, window.innerWidth - 16), maxH = Math.max(1, window.innerHeight - 16)
+  const width = Math.min(maxW, Math.max(Math.min(360, maxW), bounds.width))
+  const height = Math.min(maxH, Math.max(Math.min(260, maxH), bounds.height))
+  return { width, height, x: Math.max(8, Math.min(bounds.x, window.innerWidth - width - 8)),
+    y: Math.max(8, Math.min(bounds.y, window.innerHeight - height - 8)) }
+}
+function initialBounds(): Bounds {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') as Bounds | null
+    if (saved && [saved.x, saved.y, saved.width, saved.height].every(Number.isFinite)) return clamp(saved)
+  } catch { /* Storage can be unavailable in private/managed browsers. */ }
+  return clamp({ x: window.innerWidth - 536, y: window.innerHeight - 416, width: 520, height: 400 })
+}
 
-const MIN_W = 320
-const MAX_W_FRAC = 0.92
-// 对话区挤压：仿 dsh-better-sidebar 的 layout.css，给 #root 加 margin-right 让中栏让位
-const WIDTH_VAR = '--dsh-office-width'
-const DRAGGING_ATTR = 'data-dsh-office-dragging'
-const LAYOUT_STYLE_ID = 'dsh-office-dock-layout'
-
-/**
- * 右侧滑出面板：顶部栏（标题 + 关闭）+ 办公室画布。fixed 定位在窗口右缘，
- * 同时通过 #root 的 margin-right 让对话区（中栏）让出宽度而非被覆盖。
- */
+/** Floating office: independent geometry, title drag and two-axis resize. */
 export function OfficeDock(props: OfficeCanvasProps & { onClose: () => void }): React.ReactElement {
   const { onClose, ...canvasProps } = props
-  // 每次点开默认展开屏幕的 70%；拖动只在本次会话内生效
-  const [width, setWidth] = useState(() => Math.round(window.innerWidth * 0.7))
-  const [hovered, setHovered] = useState(false)
-  const [dragging, setDragging] = useState(false)
-  const dragRef = useRef({ startX: 0, startWidth: width })
-  const latestRef = useRef(width)
-  const frameRef = useRef<number | null>(null)
-
-  // 注入对话区挤压样式（挂载一次，卸载清理）；#root 的 margin-right 跟随面板宽度
+  const [bounds, setBounds] = useState(initialBounds)
+  const latest = useRef(bounds)
+  const frame = useRef<number | undefined>(undefined)
+  const drag = useRef<{ x: number; y: number; bounds: Bounds; mode: 'move' | 'resize' } | undefined>(undefined)
+  const save = (value: Bounds): void => {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(value)) } catch { /* Optional preference. */ }
+  }
   useEffect(() => {
-    const style = document.createElement('style')
-    style.id = LAYOUT_STYLE_ID
-    style.textContent = `#root {
-  margin-right: var(${WIDTH_VAR}, 0px);
-  width: calc(100% - var(${WIDTH_VAR}, 0px));
-  transition: margin-right 0.18s ease, width 0.18s ease;
-}
-body[${DRAGGING_ATTR}] #root { transition: none; }`
-    document.head.appendChild(style)
-    return () => { style.remove() }
+    const resize = (): void => { latest.current = clamp(latest.current); setBounds(latest.current) }
+    window.addEventListener('resize', resize)
+    return () => { window.removeEventListener('resize', resize); if (frame.current !== undefined) cancelAnimationFrame(frame.current) }
   }, [])
-  useEffect(() => {
-    document.documentElement.style.setProperty(WIDTH_VAR, `${width}px`)
-    return () => { document.documentElement.style.removeProperty(WIDTH_VAR) }
-  }, [width])
-
-  const clampWidth = (w: number): number =>
-    Math.min(Math.max(MIN_W, w), Math.max(MIN_W, Math.round(window.innerWidth * MAX_W_FRAC)))
-
-  const onHandleDown = (e: React.PointerEvent<HTMLDivElement>): void => {
-    e.preventDefault()
-    e.currentTarget.setPointerCapture(e.pointerId)
-    dragRef.current = { startX: e.clientX, startWidth: width }
-    setDragging(true)
-    document.body.setAttribute(DRAGGING_ATTR, '')
+  const begin = (event: React.PointerEvent<HTMLElement>, mode: 'move' | 'resize'): void => {
+    if (event.button !== 0 || (event.target as HTMLElement).closest('button') && mode === 'move') return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    drag.current = { x: event.clientX, y: event.clientY, bounds: latest.current, mode }
   }
-  const onHandleMove = (e: React.PointerEvent<HTMLDivElement>): void => {
-    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
-    latestRef.current = clampWidth(dragRef.current.startWidth + (dragRef.current.startX - e.clientX))
-    frameRef.current ??= requestAnimationFrame(() => {
-      frameRef.current = null
-      setWidth(latestRef.current)
-    })
+  const move = (event: React.PointerEvent<HTMLElement>): void => {
+    const start = drag.current
+    if (!start || !event.currentTarget.hasPointerCapture(event.pointerId)) return
+    const dx = event.clientX - start.x, dy = event.clientY - start.y
+    latest.current = start.mode === 'move'
+      ? clamp({ ...start.bounds, x: start.bounds.x + dx, y: start.bounds.y + dy })
+      : { ...start.bounds,
+        width: Math.min(window.innerWidth - start.bounds.x - 8, Math.max(360, start.bounds.width + dx)),
+        height: Math.min(window.innerHeight - start.bounds.y - 8, Math.max(260, start.bounds.height + dy)) }
+    frame.current ??= requestAnimationFrame(() => { frame.current = undefined; setBounds(latest.current) })
   }
-  const onHandleUp = (e: React.PointerEvent<HTMLDivElement>): void => {
-    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
-    e.currentTarget.releasePointerCapture(e.pointerId)
-    if (frameRef.current !== null) { cancelAnimationFrame(frameRef.current); frameRef.current = null }
-    setWidth(latestRef.current)
-    setDragging(false)
-    document.body.removeAttribute(DRAGGING_ATTR)
+  const end = (event: React.PointerEvent<HTMLElement>): void => {
+    if (!drag.current) return
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+    drag.current = undefined
+    if (frame.current !== undefined) { cancelAnimationFrame(frame.current); frame.current = undefined }
+    setBounds(latest.current); save(latest.current)
   }
-
   return (
-    <>
-      <style>{KEYFRAMES}</style>
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width,
-          background: '#FFFFFF',
-          boxShadow: '-6px 0 28px rgba(0,0,0,0.22)',
-          zIndex: 2147483000,
-          display: 'flex',
-          flexDirection: 'column',
-          animation: 'dsh-office-dock-in 0.22s ease-out',
-        }}
-      >
-        <div
-          onPointerDown={onHandleDown}
-          onPointerMove={onHandleMove}
-          onPointerUp={onHandleUp}
-          onPointerCancel={onHandleUp}
-          onPointerEnter={() => setHovered(true)}
-          onPointerLeave={() => setHovered(false)}
-          style={{
-            position: 'absolute',
-            left: -6,
-            top: 0,
-            bottom: 0,
-            width: 14,
-            cursor: 'ew-resize',
-            zIndex: 20,
-            touchAction: 'none',
-          }}
-          data-dragging={dragging || undefined}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              left: 6,
-              top: 0,
-              bottom: 0,
-              width: 2,
-              borderRadius: 1,
-              background: dragging ? 'rgba(150,120,80,0.7)' : hovered ? 'rgba(150,120,80,0.45)' : 'rgba(150,120,80,0.16)',
-              transition: 'background 0.15s',
-            }}
-          />
-        </div>
-        <div
-          style={{
-            flex: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '0 14px',
-            height: 44,
-            borderBottom: '1px solid var(--dsw-alias-border-l2, #ECE6DB)',
-            background: 'var(--dsw-bg-card, #FAF7F1)',
-          }}
-        >
-          <span style={{ fontSize: 15 }}>🏢</span>
-          <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--dsw-alias-label-primary, #4A4034)', flex: 1 }}>实景办公室</span>
-          <button
-            type="button"
-            onClick={onClose}
-            title="关闭"
-            aria-label="关闭实景办公室"
-            style={{
-              border: 'none',
-              background: 'transparent',
-              color: 'var(--dsw-alias-label-tertiary, #8A7A63)',
-              cursor: 'pointer',
-              width: 28,
-              height: 28,
-              borderRadius: 6,
-              fontSize: 15,
-              lineHeight: 1,
-            }}
-          >
-            ✕
-          </button>
-        </div>
-        <div style={{ flex: 1, minHeight: 0 }}>
-          <OfficeCanvas {...canvasProps} />
-        </div>
-      </div>
-    </>
+    <section aria-label="牛马办公室窗口" style={{ position: 'fixed', left: bounds.x, top: bounds.y,
+      width: bounds.width, height: bounds.height, zIndex: 2147483000, display: 'flex', flexDirection: 'column',
+      background: '#E8DCC8', borderRadius: 12, border: '1px solid #CDBFA9', boxSizing: 'border-box',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.22)', overflow: 'hidden' }}>
+      <header aria-label="拖动办公室" onPointerDown={event => begin(event, 'move')} onPointerMove={move}
+        onPointerUp={end} onPointerCancel={end} style={{ height: 36, flex: 'none', display: 'flex',
+          alignItems: 'center', gap: 8, padding: '0 10px', background: '#FAF7F1', borderBottom: '1px solid #DDD3C3',
+          cursor: 'move', touchAction: 'none', userSelect: 'none' }}>
+        <span>🏢</span><span style={{ flex: 1, fontWeight: 600, fontSize: 13, color: '#4A4034' }}>实景办公室</span>
+        <button type="button" onClick={onClose} aria-label="关闭实景办公室" title="关闭"
+          style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#8A7A63', fontSize: 16 }}>✕</button>
+      </header>
+      <div style={{ flex: 1, minHeight: 0 }}><OfficeCanvas {...canvasProps} /></div>
+      <div aria-label="调整办公室大小" title="拖动调整宽度和高度" onPointerDown={event => begin(event, 'resize')}
+        onPointerMove={move} onPointerUp={end} onPointerCancel={end}
+        style={{ position: 'absolute', right: 0, bottom: 0, width: 22, height: 22, cursor: 'nwse-resize',
+          touchAction: 'none', zIndex: 30, color: '#8A7A63', display: 'grid', placeItems: 'center' }}>◢</div>
+    </section>
   )
 }
